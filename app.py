@@ -233,7 +233,7 @@ INDEX_HTML = """<!doctype html>
       right: 18px;
       z-index: 10;
       display: grid;
-      grid-template-columns: minmax(240px, 520px) auto;
+      grid-template-columns: minmax(240px, 520px) auto minmax(140px, 220px);
       align-items: center;
       gap: 12px;
       padding: 10px 12px;
@@ -356,6 +356,10 @@ INDEX_HTML = """<!doctype html>
         width: 100%;
       }
 
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
       .content-area {
         flex-direction: column;
       }
@@ -381,6 +385,10 @@ INDEX_HTML = """<!doctype html>
         <option>Ei dataa</option>
       </select>
     </div>
+    <div class="field">
+      <label for="search-input">Haku</label>
+      <input id="search-input" type="search" placeholder="Etsi nimimerkkiä…" disabled>
+    </div>
   </div>
 
   <div class="content-area">
@@ -394,6 +402,7 @@ INDEX_HTML = """<!doctype html>
   <script>
     const input = document.getElementById("profile-url");
     const groupFilter = document.getElementById("group-filter");
+    const searchInput = document.getElementById("search-input");
     const profileStorageKey = "steamfriends.profileUrl";
     const groupStorageKey = "steamfriends.groupId";
     let currentData = null;
@@ -406,6 +415,7 @@ INDEX_HTML = """<!doctype html>
       yaxis: { title: "Kaverien kertymä" },
       margin: { l: 70, r: 30, t: 96, b: 90 },
       hovermode: "closest",
+      dragmode: "pan",
       annotations: [{
         text: "Syötä Steam-profiilin URL.",
         xref: "paper",
@@ -525,7 +535,17 @@ INDEX_HTML = """<!doctype html>
       return rows;
     }
 
-    function makeTrace(rows) {
+    function makeTrace(rows, term) {
+      const hasSearch = Boolean(term);
+      const colors = rows.map((row) => {
+        if (!hasSearch) return "#1b75d0";
+        return row.name.toLowerCase().includes(term) ? "#e8650a" : "#c0c0c0";
+      });
+      const sizes = rows.map((row) => {
+        if (!hasSearch) return 9;
+        return row.name.toLowerCase().includes(term) ? 13 : 7;
+      });
+
       return {
         type: "scatter",
         mode: "markers+text",
@@ -539,9 +559,9 @@ INDEX_HTML = """<!doctype html>
         },
         customdata: rows.map((row) => [row.dateText, row.steamId]),
         marker: {
-          color: "#1b75d0",
-          size: 9,
-          opacity: 0.82
+          color: colors,
+          size: sizes,
+          opacity: 0.85
         },
         hovertemplate:
           "<b>%{text}</b><br>" +
@@ -554,15 +574,17 @@ INDEX_HTML = """<!doctype html>
     function renderChart() {
       const rows = filteredRows(groupFilter.value);
       const selectedText = groupFilter.options[groupFilter.selectedIndex].textContent;
+      const term = searchInput.value.trim().toLowerCase();
 
-      Plotly.react("chart", [makeTrace(rows)], {
+      Plotly.react("chart", [makeTrace(rows, term)], {
         title: groupFilter.value
           ? `Steam-kaverit aikajanalla - ${selectedText}`
           : "Steam-kaverit aikajanalla",
         xaxis: { title: "Kaveruuden alkamispäivä" },
         yaxis: { title: "Kaverien kertymä" },
         margin: { l: 70, r: 30, t: 96, b: 90 },
-        hovermode: "closest"
+        hovermode: "closest",
+        dragmode: "pan"
       }, config);
     }
 
@@ -592,6 +614,7 @@ INDEX_HTML = """<!doctype html>
         flashValid();
         fillGroups(payload);
         fillUnknownPanel(payload);
+        searchInput.disabled = false;
         renderChart();
       } catch (error) {
         groupFilter.disabled = true;
@@ -619,6 +642,10 @@ INDEX_HTML = """<!doctype html>
     groupFilter.addEventListener("change", () => {
       localStorage.setItem(groupStorageKey, groupFilter.value);
       renderChart();
+    });
+
+    searchInput.addEventListener("input", () => {
+      if (currentData) renderChart();
     });
 
     const savedProfileUrl = localStorage.getItem(profileStorageKey);
