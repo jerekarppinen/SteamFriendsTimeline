@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from time import time
 from urllib.parse import urlparse
 import xml.etree.ElementTree as ET
 
@@ -11,6 +12,8 @@ FRIEND_LIST_URL = "https://api.steampowered.com/ISteamUser/GetFriendList/v1/"
 PLAYER_SUMMARIES_URL = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/"
 GROUP_LIST_URL = "https://api.steampowered.com/ISteamUser/GetUserGroupList/v1/"
 VANITY_URL = "https://api.steampowered.com/ISteamUser/ResolveVanityURL/v1/"
+CACHE_TTL_SECONDS = 6 * 60 * 60
+timeline_cache = {}
 
 
 def load_env(path=".env"):
@@ -151,6 +154,11 @@ def get_group_data(steam_id, friend_ids):
 
 def build_timeline(profile_url):
     steam_id = get_steam_id(profile_url)
+    cached = timeline_cache.get(steam_id)
+
+    if cached and time() - cached["created_at"] < CACHE_TTL_SECONDS:
+        return cached["data"]
+
     data = request_json(FRIEND_LIST_URL, {
         "key": API_KEY,
         "steamid": steam_id,
@@ -176,7 +184,7 @@ def build_timeline(profile_url):
         dates.append(date.strftime("%Y-%m-%dT%H:%M:%S"))
         date_texts.append(f"{date:%H:%M} {date.day}.{date.month}.{date.year}")
 
-    return {
+    result = {
         "dates": dates,
         "positions": list(range(1, len(friends) + 1)),
         "names": [names.get(steam_id, steam_id) for steam_id in steam_ids],
@@ -185,6 +193,13 @@ def build_timeline(profile_url):
         "groups": group_options,
         "friendGroups": [friend_groups[steam_id] for steam_id in steam_ids],
     }
+
+    timeline_cache[steam_id] = {
+        "created_at": time(),
+        "data": result,
+    }
+
+    return result
 
 
 INDEX_HTML = """<!doctype html>
