@@ -172,8 +172,15 @@ def build_timeline(profile_url):
     ]
     friends.sort(key=lambda friend: friend["friend_since"])
 
+    unknown_friends = [
+        friend
+        for friend in data["friendslist"]["friends"]
+        if friend.get("friend_since", 0) == 0
+    ]
+
     steam_ids = [friend["steamid"] for friend in friends]
-    names = get_player_names(steam_ids)
+    unknown_ids = [friend["steamid"] for friend in unknown_friends]
+    names = get_player_names(steam_ids + unknown_ids)
     group_options, friend_groups = get_group_data(steam_id, steam_ids)
 
     dates = []
@@ -192,6 +199,8 @@ def build_timeline(profile_url):
         "steamIds": steam_ids,
         "groups": group_options,
         "friendGroups": [friend_groups[steam_id] for steam_id in steam_ids],
+        "unknownNames": [names.get(sid, sid) for sid in unknown_ids],
+        "unknownSteamIds": unknown_ids,
     }
 
     timeline_cache[steam_id] = {
@@ -281,10 +290,55 @@ INDEX_HTML = """<!doctype html>
       }
     }
 
-    #chart {
-      width: 100vw;
-      height: calc(100vh - 74px);
+    .content-area {
+      display: flex;
       margin-top: 74px;
+      height: calc(100vh - 74px);
+    }
+
+    #unknown-panel {
+      display: none;
+      width: 210px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      border-right: 1px solid #d8d8d8;
+      background: #fff;
+      padding: 10px 12px;
+    }
+
+    #unknown-panel.visible {
+      display: block;
+    }
+
+    #unknown-panel h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #555;
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    #unknown-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    #unknown-list li {
+      font-size: 13px;
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+      color: #333;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #chart {
+      flex: 1;
+      height: 100%;
+      min-width: 0;
     }
 
     @media (max-width: 860px) {
@@ -300,6 +354,17 @@ INDEX_HTML = """<!doctype html>
       select {
         min-width: 0;
         width: 100%;
+      }
+
+      .content-area {
+        flex-direction: column;
+      }
+
+      #unknown-panel {
+        width: 100%;
+        height: 140px;
+        border-right: none;
+        border-bottom: 1px solid #d8d8d8;
       }
     }
   </style>
@@ -318,7 +383,13 @@ INDEX_HTML = """<!doctype html>
     </div>
   </div>
 
-  <div id="chart"></div>
+  <div class="content-area">
+    <div id="unknown-panel">
+      <h3>Päivämäärä ei tiedossa</h3>
+      <ul id="unknown-list"></ul>
+    </div>
+    <div id="chart"></div>
+  </div>
 
   <script>
     const input = document.getElementById("profile-url");
@@ -391,6 +462,26 @@ INDEX_HTML = """<!doctype html>
       input.classList.remove("valid-flash");
       void input.offsetWidth;
       input.classList.add("valid-flash");
+    }
+
+    function fillUnknownPanel(data) {
+      const panel = document.getElementById("unknown-panel");
+      const list = document.getElementById("unknown-list");
+      list.innerHTML = "";
+
+      if (!data.unknownNames || data.unknownNames.length === 0) {
+        panel.classList.remove("visible");
+        return;
+      }
+
+      for (const name of data.unknownNames) {
+        const li = document.createElement("li");
+        li.textContent = name;
+        li.title = name;
+        list.appendChild(li);
+      }
+
+      panel.classList.add("visible");
     }
 
     function fillGroups(data) {
@@ -500,6 +591,7 @@ INDEX_HTML = """<!doctype html>
         localStorage.setItem(profileStorageKey, profileUrl);
         flashValid();
         fillGroups(payload);
+        fillUnknownPanel(payload);
         renderChart();
       } catch (error) {
         groupFilter.disabled = true;
