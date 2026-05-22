@@ -85,7 +85,7 @@ Asenna tarvittavat paketit:
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-venv nginx
+sudo apt install python3 python3-venv
 ```
 
 Kopioi projekti palvelimelle esimerkiksi hakemistoon `/opt/steamfriends`:
@@ -153,7 +153,15 @@ sudo systemctl status steamfriends
 
 Tässä vaiheessa sovellus kuuntelee paikallisesti portissa `8000`.
 
-Nginx reverse proxy:
+### Nginx
+
+Asenna nginx:
+
+```bash
+sudo apt install nginx
+```
+
+Luo reverse proxy -konfiguraatio:
 
 ```bash
 sudo nano /etc/nginx/sites-available/steamfriends
@@ -189,6 +197,48 @@ HTTPS kannattaa ottaa käyttöön Certbotilla:
 ```bash
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d example.com
+```
+
+### Apache
+
+Asenna Apache ja ota käyttöön tarvittavat proxy-moduulit:
+
+```bash
+sudo apt install apache2
+sudo a2enmod proxy proxy_http
+```
+
+Luo virtuaalihostin konfiguraatio:
+
+```bash
+sudo nano /etc/apache2/sites-available/steamfriends.conf
+```
+
+Sisältö, vaihda `example.com` omaan domainiin:
+
+```apache
+<VirtualHost *:80>
+    ServerName example.com
+
+    ProxyPreserveHost On
+    ProxyPass / http://127.0.0.1:8000/
+    ProxyPassReverse / http://127.0.0.1:8000/
+</VirtualHost>
+```
+
+Ota sivusto käyttöön:
+
+```bash
+sudo a2ensite steamfriends
+sudo apachectl configtest
+sudo systemctl reload apache2
+```
+
+HTTPS kannattaa ottaa käyttöön Certbotilla:
+
+```bash
+sudo apt install certbot python3-certbot-apache
+sudo certbot --apache -d example.com
 ```
 
 API-avain pysyy palvelimen `.env`-tiedostossa. Älä lisää `.env`-tiedostoa versionhallintaan.

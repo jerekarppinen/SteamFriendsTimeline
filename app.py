@@ -551,7 +551,7 @@ class SteamFriendsHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path not in {"/", "/index.html"}:
+        if self.path not in {"/rakkaatystavat", "/rakkaatystavat/index.html"}:
             self.send_error(404)
             return
 
